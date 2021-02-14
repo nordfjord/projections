@@ -1,6 +1,6 @@
 {
   "name": "@nordfjord/projections",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A projection library similar to liquid projections for Node",
   "main": "dist/index.js",
   "scripts": {
