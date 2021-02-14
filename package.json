@@ -4,7 +4,9 @@
   "description": "A projection library similar to liquid projections for Node",
   "main": "dist/index.js",
   "scripts": {
-    "test": "jest"
+    "test": "jest",
+    "prebuild": "rimraf dist",
+    "build": "tsc -p . && babel ./src --out-dir dist/ --extensions '.ts'"
   },
   "repository": {
     "type": "git",
@@ -21,6 +23,7 @@
   },
   "homepage": "https://github.com/nordfjord/projections#readme",
   "devDependencies": {
+    "@babel/cli": "^7.12.16",
     "@babel/core": "^7.12.16",
     "@babel/plugin-proposal-class-properties": "^7.12.13",
     "@babel/plugin-proposal-decorators": "^7.12.13",
@@ -31,6 +34,7 @@
     "babel-plugin-transform-typescript-metadata": "^0.3.1",
     "class-transformer": "^0.3.2",
     "jest": "^26.6.3",
+    "prettier": "^2.2.1",
     "rxjs": "^6.6.3",
     "sqlite3": "^5.0.1",
     "typeorm": "^0.2.31",
