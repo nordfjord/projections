@@ -186,8 +186,6 @@ const map: IEventMap<MyContext> = builder.build ({
 With an entity event map we can use TypeORM to project into a database of our choosing.
 
 ```ts
-import { TypeOrmProjector }    from './typeorm.projector'
-import { ProductCatalogEntry } from './index'
 import { getConnection }       from 'typeorm'
 
 const getRepository = async (e: Type) => getConnection ().getRepository (e)
@@ -213,8 +211,6 @@ import {
   TypeOrmContext
 }                         from '@nordfjord/projections'
 import { getConnection }  from 'typeorm'
-
-const getRepository = async (e: Type) => getConnection ().getRepository (e)
 
 class MyProjector {
   private tx: EntityManager;
