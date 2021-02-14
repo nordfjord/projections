@@ -1,0 +1,44 @@
+{
+  "name": "@nordfjord/projections",
+  "version": "1.0.0",
+  "description": "A projection library similar to liquid projections for Node",
+  "main": "dist/index.js",
+  "scripts": {
+    "test": "jest"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/nordfjord/projections.git"
+  },
+  "keywords": [
+    "Projections",
+    "event-sourcing"
+  ],
+  "author": "Einar Nordfjord <einar@nordfjord.io>",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/nordfjord/projections/issues"
+  },
+  "homepage": "https://github.com/nordfjord/projections#readme",
+  "devDependencies": {
+    "@babel/core": "^7.12.16",
+    "@babel/plugin-proposal-class-properties": "^7.12.13",
+    "@babel/plugin-proposal-decorators": "^7.12.13",
+    "@babel/preset-env": "^7.12.16",
+    "@babel/preset-typescript": "^7.12.16",
+    "@types/jest": "^26.0.20",
+    "babel-jest": "^26.6.3",
+    "babel-plugin-transform-typescript-metadata": "^0.3.1",
+    "class-transformer": "^0.3.2",
+    "jest": "^26.6.3",
+    "rxjs": "^6.6.3",
+    "sqlite3": "^5.0.1",
+    "typeorm": "^0.2.31",
+    "typescript": "^4.1.5"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "rxjs": "^6.6.3",
+    "typeorm": "^0.2.31"
+  }
+}
