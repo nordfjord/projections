@@ -64,7 +64,15 @@ export class Dispatcher {
       return subscription
     } catch (err) {
       if (err instanceof NoSuchPositionException) {
-        return this.handleUnknownCheckpoint(handler, subscriptionOptions)
+        const result = await this.handleUnknownCheckpoint(
+          handler,
+          subscriptionOptions,
+        )
+        if (result == undefined)
+          throw new Error(
+            'Unable to restart subscription after unknown checkpoint',
+          )
+        return result
       }
       throw err
     }
@@ -119,9 +127,8 @@ export class Dispatcher {
     action: () => Promise<T>,
     abort: (err: Error) => void,
     subscription?: Subscription,
-    // @ts-ignore
     ignore?: () => T | Promise<T>,
-  ): Promise<T> {
+  ): Promise<T | undefined> {
     let attempts = 0
     let retry = true
     while (retry) {
