@@ -3,19 +3,26 @@ import { EventEnvelope } from './interfaces'
 export enum ExceptionResolution {
   Ignore,
   Abort,
-  Retry
+  Retry,
 }
 
-export class NoSuchPositionException extends Error {
-}
+export class NoSuchPositionException extends Error {}
 
 interface Subscription {
   unsubscribe(): void
 }
 
-export type HandleException = (subscription: Subscription | undefined, error: Error, attempts: number) => Promise<ExceptionResolution>
+export type HandleException = (
+  subscription: Subscription | undefined,
+  error: Error,
+  attempts: number,
+) => Promise<ExceptionResolution>
 export type HandleSuccess = (subscription: Subscription) => Promise<void>
-export type CreateSubscription = (lastCheckpoint: bigint, handler: Handler, subscriptionId: string) => Promise<Subscription>
+export type CreateSubscription = (
+  lastCheckpoint: bigint,
+  handler: Handler,
+  subscriptionId: string,
+) => Promise<Subscription>
 
 export interface SubscriptionOptions {
   id: string
@@ -26,96 +33,116 @@ export interface SubscriptionOptions {
 const defaultOptions = () => ({
   id: 'subscription',
   restartWhenAhead: true,
-  beforeRestarting: () => Promise.resolve ()
+  beforeRestarting: () => Promise.resolve(),
 })
-
 
 type Handler = (event: EventEnvelope) => Promise<void>
 
-
 export class Dispatcher {
-  private static readonly abortExceptionResolutionPromise = Promise.resolve (ExceptionResolution.Abort)
+  private static readonly abortExceptionResolutionPromise = Promise.resolve(
+    ExceptionResolution.Abort,
+  )
 
-  constructor(private readonly createSubscription: CreateSubscription) {
-  }
+  constructor(private readonly createSubscription: CreateSubscription) {}
 
-  async subscribe(lastProcessedCheckpoint: bigint,
-                  handler: Handler,
-                  options: Partial<SubscriptionOptions> = defaultOptions ()): Promise<Subscription> {
+  async subscribe(
+    lastProcessedCheckpoint: bigint,
+    handler: Handler,
+    options: Partial<SubscriptionOptions> = defaultOptions(),
+  ): Promise<Subscription> {
     const subscriptionOptions: SubscriptionOptions = {
-      ...defaultOptions (),
-      ...options
+      ...defaultOptions(),
+      ...options,
     }
 
     try {
-      const subscription: Subscription = await this.createSubscription (
+      const subscription: Subscription = await this.createSubscription(
         lastProcessedCheckpoint,
-        (eventBatch) => this.handleEvent (eventBatch, handler, subscription),
-        subscriptionOptions.id)
+        (eventBatch) => this.handleEvent(eventBatch, handler, subscription),
+        subscriptionOptions.id,
+      )
       return subscription
     } catch (err) {
       if (err instanceof NoSuchPositionException) {
-        return this.handleUnknownCheckpoint (handler, subscriptionOptions)
+        return this.handleUnknownCheckpoint(handler, subscriptionOptions)
       }
       throw err
     }
   }
 
-  public exceptionHandler: HandleException = () => Dispatcher.abortExceptionResolutionPromise
-  public successHandler: HandleSuccess = () => Promise.resolve ()
+  public exceptionHandler: HandleException = () =>
+    Dispatcher.abortExceptionResolutionPromise
+  public successHandler: HandleSuccess = () => Promise.resolve()
 
-  private async handleEvent(event: EventEnvelope,
-                            handler: Handler, subscription: Subscription) {
-    await this.executeWithPolicy (
+  private async handleEvent(
+    event: EventEnvelope,
+    handler: Handler,
+    subscription: Subscription,
+  ) {
+    await this.executeWithPolicy(
       async () => {
-        await handler (event)
-        await this.successHandler (subscription)
+        await handler(event)
+        await this.successHandler(subscription)
       },
-      error => {
-        console.error ('Projection exception was not handled. Event subscription has been cancelled', error)
-        subscription.unsubscribe ()
+      (error) => {
+        console.error(
+          'Projection exception was not handled. Event subscription has been cancelled',
+          error,
+        )
+        subscription.unsubscribe()
       },
-      subscription)
+      subscription,
+    )
   }
 
-  private async handleUnknownCheckpoint(handler: Handler,
-                                        options: SubscriptionOptions) {
+  private async handleUnknownCheckpoint(
+    handler: Handler,
+    options: SubscriptionOptions,
+  ) {
     if (options.restartWhenAhead) {
-      return await this.executeWithPolicy (async () => {
-          await options.beforeRestarting ()
-          return await this.subscribe (-1n, handler, options)
+      return await this.executeWithPolicy(
+        async () => {
+          await options.beforeRestarting()
+          return await this.subscribe(-1n, handler, options)
         },
-        error => {
-          console.error ('Failed to restart projection', error)
+        (error) => {
+          console.error('Failed to restart projection', error)
         },
         undefined,
-        () => this.subscribe (-1n, handler, options))
+        () => this.subscribe(-1n, handler, options),
+      )
     }
-    throw new Error ('Unknown checkpoint. Not restarting')
+    throw new Error('Unknown checkpoint. Not restarting')
   }
 
-  private async executeWithPolicy<T>(action: () => Promise<T>,
-                                     abort: (err: Error) => void,
-                                     subscription?: Subscription,
-                                     // @ts-ignore
-                                     ignore?: () => T | Promise<T>): Promise<T> {
+  private async executeWithPolicy<T>(
+    action: () => Promise<T>,
+    abort: (err: Error) => void,
+    subscription?: Subscription,
+    // @ts-ignore
+    ignore?: () => T | Promise<T>,
+  ): Promise<T> {
     let attempts = 0
     let retry = true
     while (retry) {
       try {
         ++attempts
-        const result = await action ()
+        const result = await action()
         retry = false
         return result
       } catch (err) {
-        const resolution = await this.exceptionHandler (subscription, err, attempts)
+        const resolution = await this.exceptionHandler(
+          subscription,
+          err,
+          attempts,
+        )
         switch (resolution) {
           case ExceptionResolution.Ignore:
             retry = false
             // @ts-ignore
-            return ignore?. ()
+            return ignore?.()
           case ExceptionResolution.Abort:
-            abort (err)
+            abort(err)
             retry = false
             break
           case ExceptionResolution.Retry:

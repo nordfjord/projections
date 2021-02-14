@@ -2,21 +2,21 @@ import { Column, Entity, PrimaryColumn } from 'typeorm'
 
 const BigIntTransformer = {
   from(value: string) {
-    return BigInt (value)
+    return BigInt(value)
   },
   to(value: bigint) {
-    return value.toString ()
-  }
+    return value.toString()
+  },
 }
 
-@Entity ()
+@Entity()
 export class ProjectionState {
-  @PrimaryColumn ()
+  @PrimaryColumn()
   id: string
 
-  @Column ({ type: 'text', transformer: BigIntTransformer })
+  @Column({ type: 'text', transformer: BigIntTransformer })
   position: bigint
 
-  @Column ({ name: 'last_update_utc' })
+  @Column({ name: 'last_update_utc' })
   lastUpdateUtc: Date
 }

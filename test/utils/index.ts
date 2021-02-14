@@ -1,12 +1,11 @@
-import { EntityEventMapBuilder }         from '../../src'
-import { plainToClass }                  from 'class-transformer'
+import { EntityEventMapBuilder } from '../../src'
+import { plainToClass } from 'class-transformer'
 import { Column, Entity, PrimaryColumn } from 'typeorm'
 
 export class SomethingHappened {
   type = 'SomethingHappened'
 
-  constructor(public readonly what: string) {
-  }
+  constructor(public readonly what: string) {}
 }
 
 export class UnhandledEvent {
@@ -30,41 +29,47 @@ export class ProductPriceSet {
   price: number
 }
 
-@Entity ()
+@Entity()
 export class ProductCatalogEntry {
-  @PrimaryColumn ()
+  @PrimaryColumn()
   id: string
-  @Column ({ nullable: true })
+  @Column({ nullable: true })
   category?: string
-  @Column ({ nullable: true })
+  @Column({ nullable: true })
   deleted?: boolean = false
-  @Column ({ nullable: true })
+  @Column({ nullable: true })
   price: number
 }
 
 export function generateEventsForASingleProduct() {
   return [
-    plainToClass (ProductAddedToCatalog, { category: 'MyCategory', productKey: '1' }),
-    plainToClass (ProductPriceSet, { price: 12, productKey: '1' }),
-    new UnhandledEvent ()
+    plainToClass(ProductAddedToCatalog, {
+      category: 'MyCategory',
+      productKey: '1',
+    }),
+    plainToClass(ProductPriceSet, { price: 12, productKey: '1' }),
+    new UnhandledEvent(),
   ]
 }
 
-
 export function buildEntityEventMap() {
-  const builder = new EntityEventMapBuilder<ProductCatalogEntry, string, any> ()
+  const builder = new EntityEventMapBuilder<ProductCatalogEntry, string, any>()
 
-  builder.map (ProductAddedToCatalog).asCreateOf (x => x.productKey)
-    .overwritingDuplicates ()
-    .using ((p, e) => {
+  builder
+    .map(ProductAddedToCatalog)
+    .asCreateOf((x) => x.productKey)
+    .overwritingDuplicates()
+    .using((p, e) => {
       p.category = e.category
     })
 
-  builder.map (ProductRemovedFromCatalog).asDeleteOf (x => x.productKey)
+  builder.map(ProductRemovedFromCatalog).asDeleteOf((x) => x.productKey)
 
-  builder.map (ProductPriceSet).asUpdateOf (x => x.productKey)
-    .creatingIfMissing ()
-    .using ((p, e) => {
+  builder
+    .map(ProductPriceSet)
+    .asUpdateOf((x) => x.productKey)
+    .creatingIfMissing()
+    .using((p, e) => {
       p.price = e.price
     })
 
