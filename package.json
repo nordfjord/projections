@@ -6,7 +6,7 @@
   "scripts": {
     "test": "jest",
     "prebuild": "rimraf dist",
-    "build": "tsc -p . && babel ./src --out-dir dist/ --extensions '.ts'"
+    "build": "tsc -p ./tsconfig.build.json && babel ./src --out-dir dist/ --extensions '.ts'"
   },
   "repository": {
     "type": "git",

@@ -3,6 +3,10 @@ import { Type } from '../../type'
 
 export interface TypeOrmContext {
   getRepository<T>(Projection: Type<T>): Repository<T>
+  streamId: string
+  timestampUtc: Date
+  position: bigint
+  metadata: Record<string, any>
 }
 
 export interface ITypeOrmChildProjector {

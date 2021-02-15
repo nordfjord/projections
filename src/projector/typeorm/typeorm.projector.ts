@@ -33,12 +33,12 @@ export class TypeOrmProjector<TProjection, TKey> {
 
   public async handle(events: EventEnvelope[]) {
     if (events.length === 0) return
-    const lastPosition = await this.getLastPosition()
+    const stateRepo = this.repositoryFactory(ProjectionState)
+    const lastPosition = await this.getLastPosition(stateRepo)
     const eventsToHandle = events.filter((e) => e.position > lastPosition)
 
     await this.executeWithRetry(() => this.projectEventBatch(eventsToHandle))
 
-    const stateRepo = await this.repositoryFactory(ProjectionState)
     await stateRepo.save({
       position: events[events.length - 1].position,
       lastUpdateUtc: new Date(),
@@ -67,6 +67,10 @@ export class TypeOrmProjector<TProjection, TKey> {
       try {
         await this.projectEvent(envelope.body, {
           getRepository: this.repositoryFactory,
+          streamId: envelope.streamId,
+          position: envelope.position,
+          timestampUtc: envelope.timestampUtc,
+          metadata: envelope.metadata,
         })
       } catch (err) {
         const exception =
@@ -91,9 +95,8 @@ export class TypeOrmProjector<TProjection, TKey> {
     await this.mapConfigurator.projectEvent(event, context)
   }
 
-  public async getLastPosition() {
-    const stateRepo = await this.repositoryFactory(ProjectionState)
-    const state = await stateRepo.findOne(this.Projection.name)
+  public async getLastPosition(repo: Repository<ProjectionState>) {
+    const state = await repo.findOne(this.Projection.name)
     return state?.position ?? -1n
   }
 }

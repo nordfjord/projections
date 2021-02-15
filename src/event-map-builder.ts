@@ -71,10 +71,10 @@ export class EntityEventMapBuilder<TProjection, TKey, TContext>
     return this
   }
 
-  public map<TEvent>(Event: Type<TEvent>) {
+  public map<TEvent>(...Events: Type<TEvent>[]) {
     return new CrudAction(
-      Event,
-      this.eventMapBuilder.map(Event),
+      Events,
+      this.eventMapBuilder.map<TEvent>(...Events),
       () => this.projector,
     )
   }
@@ -138,7 +138,7 @@ type GetKey<TEvent, TContext, TKey> = (event: TEvent, context: TContext) => TKey
 
 class CrudAction<TEvent, TProjection, TKey, TContext> {
   constructor(
-    private readonly Event: Type<TEvent>,
+    private readonly Events: Type<TEvent>[],
     private readonly actionBuilder: Action<TEvent, TContext>,
     private readonly getProjector: () => EntityProjectorMap<
       TProjection,
@@ -149,7 +149,7 @@ class CrudAction<TEvent, TProjection, TKey, TContext> {
 
   public asCreateOf(getKey: GetKey<TEvent, TContext, TKey>) {
     return new CreateAction(
-      this.Event,
+      this.Events,
       getKey,
       this.actionBuilder,
       this.getProjector,
@@ -158,7 +158,7 @@ class CrudAction<TEvent, TProjection, TKey, TContext> {
 
   public asUpdateOf(getKey: GetKey<TEvent, TContext, TKey>) {
     return new UpdateAction(
-      this.Event,
+      this.Events,
       getKey,
       this.actionBuilder,
       this.getProjector,
@@ -167,7 +167,7 @@ class CrudAction<TEvent, TProjection, TKey, TContext> {
 
   public asDeleteOf(getKey: GetKey<TEvent, TContext, TKey>) {
     return new DeleteAction(
-      this.Event,
+      this.Events,
       getKey,
       this.actionBuilder,
       this.getProjector,
@@ -195,7 +195,7 @@ class CreateAction<TEvent, TProjection, TKey, TContext> {
   }
 
   constructor(
-    private readonly Event: Type<TEvent>,
+    private readonly Events: Type<TEvent>[],
     private readonly getKey: GetKey<TEvent, TContext, TKey>,
     private readonly actionBuilder: Action<TEvent, TContext>,
     private readonly getProjector: () => EntityProjectorMap<
@@ -256,7 +256,7 @@ class UpdateAction<TEvent, TProjection, TKey, TContext> {
   }
 
   constructor(
-    private readonly Event: Type<TEvent>,
+    private readonly Events: Type<TEvent>[],
     private readonly getKey: GetKey<TEvent, TContext, TKey>,
     private readonly actionBuilder: Action<TEvent, TContext>,
     private readonly getProjector: () => EntityProjectorMap<
@@ -315,7 +315,7 @@ class DeleteAction<TEvent, TKey, TContext> {
   }
 
   constructor(
-    private readonly Event: Type<TEvent>,
+    private readonly Events: Type<TEvent>[],
     private readonly getKey: GetKey<TEvent, TContext, TKey>,
     private readonly actionBuilder: Action<TEvent, TContext>,
     private readonly getProjector: () => EntityProjectorMap<
