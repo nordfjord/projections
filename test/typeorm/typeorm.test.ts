@@ -4,7 +4,7 @@ import {
   EntityManager,
   getConnection,
 } from 'typeorm'
-import { TypeOrmProjector } from '../../src/projector/typeorm/typeorm.projector'
+import { EventEnvelope, ProjectionState, TypeOrmProjector } from '../../src'
 import {
   buildEntityEventMap,
   generateEventsForASingleProduct,
@@ -13,9 +13,8 @@ import {
 import { Type } from '../../src/type'
 import { Dispatcher } from '../../src/dispatcher'
 import { Subject } from 'rxjs'
-import { EventEnvelope } from '../../src'
-import { bufferTime, concatMap, delay, filter, take, tap } from 'rxjs/operators'
-import { ProjectionState } from '../../src/projector/typeorm/ProjectionState'
+import { bufferTime, concatMap, filter, take, tap } from 'rxjs/operators'
+import { LruCache } from '../../src/cache/lru.cache'
 
 let connection: Connection
 beforeAll(async () => {
@@ -34,7 +33,11 @@ afterAll(async () => {
 
 class MyProjector {
   private tx: EntityManager
-  private projector: TypeOrmProjector<ProductCatalogEntry, string>
+  public projector: TypeOrmProjector<ProductCatalogEntry, string>
+
+  public getRepo<T>(t: Type<T>) {
+    return this.tx?.getRepository(t) ?? getConnection().getRepository(t)
+  }
 
   constructor(private readonly dispatcher: Dispatcher) {
     this.buildProjector()
@@ -43,8 +46,7 @@ class MyProjector {
   private buildProjector() {
     this.projector = new TypeOrmProjector(
       ProductCatalogEntry,
-      <T>(t: Type<T>) =>
-        this.tx?.getRepository(t) ?? getConnection().getRepository(t),
+      <T>(t: Type<T>) => this.getRepo(t),
       buildEntityEventMap(),
       (p, k) => {
         p.id = k
@@ -53,12 +55,16 @@ class MyProjector {
   }
 
   public async start() {
-    const lastCheckpoint = await this.projector.getLastPosition()
+    const lastCheckpoint = await this.projector.getLastPosition(
+      getConnection().getRepository(ProjectionState),
+    )
     const event$ = new Subject<EventEnvelope>()
+    const processed$ = new Subject<EventEnvelope>()
     event$
       .pipe(
-        bufferTime(100),
+        bufferTime(10),
         concatMap(async (events) => {
+          if (events.length === 0) return events
           const qr = await getConnection().createQueryRunner()
           await qr.connect()
           await qr.startTransaction()
@@ -71,12 +77,20 @@ class MyProjector {
           } finally {
             await qr.release()
           }
+          return events
         }),
+        tap((events) => events.forEach((event) => processed$.next(event))),
       )
       .subscribe()
-    await this.dispatcher.subscribe(lastCheckpoint, async (event) =>
-      event$.next(event),
-    )
+    await this.dispatcher.subscribe(lastCheckpoint, async (event) => {
+      event$.next(event)
+      await processed$
+        .pipe(
+          filter((e) => e === event),
+          take(1),
+        )
+        .toPromise()
+    })
   }
 }
 
@@ -84,7 +98,7 @@ let position = -1n
 test('It projects entities', async () => {
   const subject = new Subject<EventEnvelope>()
   const handledEventBatch = new Subject<any>()
-  const dispatcher = new Dispatcher(async (lastCheckpoint, handler, id) =>
+  const dispatcher = new Dispatcher(async (lastCheckpoint, handler) =>
     subject
       .pipe(
         filter((x) => x.position > lastCheckpoint),
@@ -109,7 +123,67 @@ test('It projects entities', async () => {
   )
   events.forEach((e) => subject.next(e))
 
-  await handledEventBatch.pipe(take(events.length), delay(500)).toPromise()
+  await handledEventBatch.pipe(take(events.length)).toPromise()
+
+  await expect(
+    getConnection().getRepository(ProductCatalogEntry).findOne('1'),
+  ).resolves.toMatchObject({
+    id: '1',
+    category: 'MyCategory',
+    price: 12,
+  })
+})
+
+test('Using an LRU cache', async () => {
+  const subject = new Subject<EventEnvelope>()
+  const handledEventBatch = new Subject<any>()
+  const dispatcher = new Dispatcher(async (lastCheckpoint, handler) =>
+    subject
+      .pipe(
+        filter((x) => x.position > lastCheckpoint),
+        concatMap(handler),
+        tap(() => {
+          handledEventBatch.next(true)
+        }),
+      )
+      .subscribe(),
+  )
+
+  const repo = getConnection().getRepository(ProductCatalogEntry)
+
+  const projector = new MyProjector(dispatcher)
+  projector.projector.cache = new LruCache<string, ProductCatalogEntry>({
+    capacity: 3,
+    retention: 10000,
+  })
+  // @ts-ignore
+  projector.getRepo = <T>(t: Type<T>) => {
+    // @ts-ignore
+    if (t === ProductCatalogEntry) {
+      return repo
+    }
+    return getConnection().getRepository(t)
+  }
+  await projector.start()
+
+  const findSpy = jest.spyOn(repo, 'findOne')
+
+  const events = generateEventsForASingleProduct().map(
+    (event, i): EventEnvelope => ({
+      position: ++position,
+      version: i,
+      timestampUtc: new Date(),
+      body: event,
+      metadata: {},
+      streamId: `Product-1`,
+    }),
+  )
+  events.forEach((e) => subject.next(e))
+
+  await handledEventBatch.pipe(take(events.length)).toPromise()
+
+  expect(repo.findOne).toHaveBeenCalledTimes(1)
+  findSpy.mockRestore()
 
   await expect(
     getConnection().getRepository(ProductCatalogEntry).findOne('1'),

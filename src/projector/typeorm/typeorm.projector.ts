@@ -6,6 +6,7 @@ import { Repository } from 'typeorm'
 import { ProjectionState } from './ProjectionState'
 import { ProjectionException, ShouldRetry } from '../common'
 import { EventEnvelope } from '../../interfaces'
+import { IProjectionCache } from '../../cache/projection-cache.interface'
 
 export class TypeOrmProjector<TProjection, TKey> {
   private readonly mapConfigurator: TypeOrmEventMapConfigurator<
@@ -29,6 +30,14 @@ export class TypeOrmProjector<TProjection, TKey> {
       children,
     )
     this.children = children
+  }
+
+  public get cache() {
+    return this.mapConfigurator.cache
+  }
+
+  public set cache(cache: IProjectionCache<TKey, TProjection>) {
+    this.mapConfigurator.cache = cache
   }
 
   public async handle(events: EventEnvelope[]) {

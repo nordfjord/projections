@@ -3,9 +3,12 @@ import { IEventMap } from '../../event-map'
 import { Action, Predicate } from '../../projector-map'
 import { ITypeOrmChildProjector, TypeOrmContext } from './interfaces'
 import { Type } from '../../type'
+import { IProjectionCache } from '../../cache/projection-cache.interface'
+import { PassThroughCache } from '../../cache/passthrough.cache'
 
 export class TypeOrmEventMapConfigurator<TProjection, TKey> {
   private readonly map: IEventMap<TypeOrmContext>
+  private _cache: IProjectionCache<TKey, TProjection> = new PassThroughCache()
 
   constructor(
     private readonly Projection: Type<TProjection>,
@@ -14,6 +17,14 @@ export class TypeOrmEventMapConfigurator<TProjection, TKey> {
     private readonly childProjectors: ITypeOrmChildProjector[],
   ) {
     this.map = this.buildMap(mapBuilder)
+  }
+
+  public get cache() {
+    return this._cache
+  }
+
+  public set cache(cache: IProjectionCache<TKey, TProjection>) {
+    this._cache = cache
   }
 
   private buildMap(
@@ -32,8 +43,8 @@ export class TypeOrmEventMapConfigurator<TProjection, TKey> {
     projector: Action<TProjection>,
     shouldOverwrite: Predicate<TProjection>,
   ) {
-    const repo = await context.getRepository(this.Projection)
-    let projection = await repo.findOne(key)
+    const repo = context.getRepository(this.Projection)
+    let projection = await this.cache.get(key, () => repo.findOne(key))
     if (projection == null || shouldOverwrite(projection)) {
       if (projection == null) {
         projection = repo.create()
@@ -43,6 +54,7 @@ export class TypeOrmEventMapConfigurator<TProjection, TKey> {
         await projector(projection)
       }
       await repo.save(projection)
+      this.cache.add(key, projection)
     }
   }
 
@@ -53,7 +65,7 @@ export class TypeOrmEventMapConfigurator<TProjection, TKey> {
     createIfMissing: () => boolean,
   ): Promise<void> {
     const repo = await context.getRepository(this.Projection)
-    let projection = await repo.findOne(key)
+    let projection = await this.cache.get(key, () => repo.findOne(key))
     if (projection == null && createIfMissing()) {
       projection = repo.create()
       this.setKey(projection, key)
@@ -62,12 +74,14 @@ export class TypeOrmEventMapConfigurator<TProjection, TKey> {
     if (projection != null) {
       await projector(projection)
       await repo.save(projection)
+      this.cache.add(key, projection)
     }
   }
 
   async delete(key: TKey, context: TypeOrmContext) {
-    const repo = await context.getRepository(this.Projection)
+    const repo = context.getRepository(this.Projection)
     const results = await repo.delete(key)
+    this.cache.remove(key)
     return (results.affected ?? 0) > 0
   }
 
