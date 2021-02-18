@@ -1,5 +1,5 @@
 import { IProjectionCache } from './projection-cache.interface'
-import QuickLRU from 'quick-lru'
+import { QuickLRU } from './quick-lru'
 
 interface LruOptions {
   capacity: number
